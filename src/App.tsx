@@ -253,21 +253,45 @@ export default function App() {
                   key="complete"
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="py-12 flex flex-col items-center text-center"
+                  className="py-8 flex flex-col items-center text-center"
                 >
                   <motion.div 
                     initial={{ scale: 0, rotate: -45 }}
                     animate={{ scale: 1, rotate: 0 }}
                     transition={{ type: "spring", bounce: 0.5 }}
-                    className="w-24 h-24 rounded-full bg-gradient-to-br from-green-400/20 to-emerald-600/20 border border-green-500/30 flex items-center justify-center mb-8 shadow-[0_0_30px_rgba(16,185,129,0.2)]"
+                    className="w-20 h-20 rounded-full bg-gradient-to-br from-green-400/20 to-emerald-600/20 border border-green-500/30 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(16,185,129,0.2)]"
                   >
-                    <Music className="w-10 h-10 text-emerald-300" />
+                    <Music className="w-8 h-8 text-emerald-300" />
                   </motion.div>
                   
                   <h2 className="text-3xl font-serif text-white mb-2">转化完成</h2>
-                  <p className="text-white/60 font-light mb-10 max-w-sm">
-                    人工合成痕迹已被清除，现在它拥有了人类的情感与共鸣。
+                  <p className="text-white/60 font-light mb-8 max-w-sm">
+                    人工合成痕迹已被清除，现在它拥有了真实的人类情感与声学共鸣。
                   </p>
+
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-6 w-full max-w-sm mb-8 space-y-4">
+                    <h4 className="text-xs text-white/50 tracking-widest uppercase mb-2">深度检测模拟结果</h4>
+                    
+                    <div className="flex justify-between items-center bg-black/20 p-3 rounded-xl border border-pink-500/10">
+                      <div className="flex items-center gap-2">
+                         <User className="w-4 h-4 text-pink-400" />
+                         <span className="text-sm text-pink-200">人类特征</span>
+                      </div>
+                      <span className="font-mono text-xl text-pink-400 tracking-wider">
+                        {(92 + Math.random() * 6).toFixed(1)}%
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center bg-black/20 p-3 rounded-xl border border-blue-500/10">
+                      <div className="flex items-center gap-2">
+                         <Cpu className="w-4 h-4 text-blue-400" />
+                         <span className="text-sm text-blue-200">AI痕迹残留</span>
+                      </div>
+                      <span className="font-mono text-xl text-blue-400 tracking-wider">
+                        {(1 + Math.random() * 5).toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
 
                   <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
                     <button 
