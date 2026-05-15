@@ -1,3 +1,5 @@
+import AudioWorker from './audioWorker?worker';
+
 export async function processAudio(
   file: File,
   onProgress: (progress: number, status: string) => void
@@ -9,16 +11,30 @@ export async function processAudio(
   const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
   let decodedData: AudioBuffer;
   try {
-    decodedData = await audioCtx.decodeAudioData(arrayBuffer);
+    decodedData = await new Promise<AudioBuffer>((resolve, reject) => {
+      try {
+        const promise = audioCtx.decodeAudioData(
+          arrayBuffer,
+          (buffer: AudioBuffer) => resolve(buffer),
+          (err: any) => reject(new Error('解码由于回调失败'))
+        );
+        if (promise) {
+          promise.catch(reject);
+        }
+      } catch (e) {
+        reject(e);
+      }
+    });
   } catch (err) {
-    throw new Error('音频解码失败，请确保文件格式有效。');
+    throw new Error('音频解码失败，如果是在封装应用内，可能是因为权限或非标准系统环境限制，请确保文件格式为常规音频。');
   }
 
   onProgress(30, '注入深度声学偏差与流体动态时间轴 (Deep Temporal Jitter)...');
   
   // Target 44.1kHz or higher, always stereo
   const targetSampleRate = Math.max(decodedData.sampleRate, 44100);
-  const offlineCtx = new OfflineAudioContext(
+  const OAC = window.OfflineAudioContext || (window as any).webkitOfflineAudioContext;
+  const offlineCtx = new OAC(
     2,
     decodedData.duration * targetSampleRate,
     targetSampleRate
@@ -189,97 +205,18 @@ export async function processAudio(
   
   // Encode to WAV in Web Worker to prevent UI from freezing
   return new Promise((resolve, reject) => {
-    const workerCode = `
-      self.onmessage = function(e) {
-        const left = e.data.left;
-        const right = e.data.right;
-        const sampleRate = e.data.sampleRate;
-        const numChannels = right ? 2 : 1;
-        const format = 1; // PCM
-        const bitDepth = 16;
-        
-        const length = left.length;
-        const bytesPerSample = bitDepth / 8;
-        const blockAlign = numChannels * bytesPerSample;
-        const byteRate = sampleRate * blockAlign;
-        const dataSize = length * blockAlign;
-        const bufferLength = 44 + dataSize;
-        
-        const arrayBuffer = new ArrayBuffer(bufferLength);
-        const view = new DataView(arrayBuffer);
-        
-        function writeString(view, offset, string) {
-          for (let i = 0; i < string.length; i++) {
-            view.setUint8(offset + i, string.charCodeAt(i));
-          }
-        }
-        
-        // Write WAV Header
-        writeString(view, 0, 'RIFF');
-        view.setUint32(4, 36 + dataSize, true);
-        writeString(view, 8, 'WAVE');
-        writeString(view, 12, 'fmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, format, true);
-        view.setUint16(22, numChannels, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, byteRate, true);
-        view.setUint16(32, blockAlign, true);
-        view.setUint16(34, bitDepth, true);
-        writeString(view, 36, 'data');
-        view.setUint32(40, dataSize, true);
-        
-        let offset = 44;
-        
-        // Use batch processing to avoid hanging the worker and blocking message loop
-        let i = 0;
-        const batchSize = Math.max(10000, Math.floor(length / 100));
-        
-        function processBatch() {
-          const end = Math.min(i + batchSize, length);
-          for (; i < end; i++) {
-            let sl = Math.max(-1, Math.min(1, left[i]));
-            sl = sl < 0 ? sl * 0x8000 : sl * 0x7FFF;
-            view.setInt16(offset, sl, true);
-            offset += 2;
-            
-            if (right) {
-              let sr = Math.max(-1, Math.min(1, right[i]));
-              sr = sr < 0 ? sr * 0x8000 : sr * 0x7FFF;
-              view.setInt16(offset, sr, true);
-              offset += 2;
-            }
-          }
-          
-          self.postMessage({ type: 'progress', progress: 60 + (i / length) * 40 });
-          
-          if (i < length) {
-            setTimeout(processBatch, 0); // yield
-          } else {
-            const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
-            self.postMessage({ type: 'done', blob: blob });
-          }
-        }
-        
-        processBatch();
-      };
-    `;
-    const blob = new Blob([workerCode], { type: 'application/javascript' });
-    const workerUrl = URL.createObjectURL(blob);
-    const worker = new Worker(workerUrl);
+    const worker = new AudioWorker();
     
     worker.onmessage = function(e) {
       if (e.data.type === 'progress') {
         onProgress(e.data.progress, '正在生成高清双声道音频...');
       } else if (e.data.type === 'done') {
-        URL.revokeObjectURL(workerUrl);
         worker.terminate();
         resolve(e.data.blob);
       }
     };
     
     worker.onerror = function() {
-      URL.revokeObjectURL(workerUrl);
       worker.terminate();
       reject(new Error('Audio encoding failed'));
     };
